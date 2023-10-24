@@ -20,3 +20,6 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 wget http://3dvision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip
 unzip -q ModelNet10.zip
 ```
+
+## Done
+Pointnet should work
