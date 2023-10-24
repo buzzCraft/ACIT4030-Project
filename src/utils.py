@@ -5,6 +5,7 @@ import numpy as np
 import random
 from pathlib import Path
 import os
+import math
 
 # BASED ON https://colab.research.google.com/github/nikitakaraevv/pointnet/blob/master/nbs/PointNetClass.ipynb#scrollTo=zCgPQhfvh7R3
 
@@ -25,11 +26,21 @@ def default_transforms():
 
 
 class PointSampler(object):
+    """
+    Samples a fixed number of points from a given point cloud
+    This makes sure that the number of points fed to the network is constant
+    """
     def __init__(self, output_size):
         assert isinstance(output_size, int)
         self.output_size = output_size
 
     def triangle_area(self, pt1, pt2, pt3):
+        """
+        :param pt1:
+        :param pt2:
+        :param pt3:
+        :return:
+        """
         side_a = np.linalg.norm(pt1 - pt2)
         side_b = np.linalg.norm(pt2 - pt3)
         side_c = np.linalg.norm(pt3 - pt1)
@@ -115,38 +126,32 @@ class PointCloudData(Dataset):
             pointcloud = self.__preproc__(f)
         return {'pointcloud': pointcloud,
                 'category': self.classes[category]}
+class RandRotation_z(object):
+    def __call__(self, pointcloud):
+        assert len(pointcloud.shape)==2
 
+        theta = random.random() * 2. * math.pi
+        rot_matrix = np.array([[ math.cos(theta), -math.sin(theta),    0],
+                               [ math.sin(theta),  math.cos(theta),    0],
+                               [0,                             0,      1]])
 
-class PointCloudData(Dataset):
-    def __init__(self, root_dir, valid=False, folder="train", transform=default_transforms()):
-        self.root_dir = root_dir
-        folders = [dir for dir in sorted(os.listdir(root_dir)) if os.path.isdir(root_dir/dir)]
-        self.classes = {folder: i for i, folder in enumerate(folders)}
-        self.transforms = transform if not valid else default_transforms()
-        self.valid = valid
-        self.files = []
-        for category in self.classes.keys():
-            new_dir = root_dir/Path(category)/folder
-            for file in os.listdir(new_dir):
-                if file.endswith('.off'):
-                    sample = {}
-                    sample['pcd_path'] = new_dir/file
-                    sample['category'] = category
-                    self.files.append(sample)
+        rot_pointcloud = rot_matrix.dot(pointcloud.T).T
+        return  rot_pointcloud
 
-    def __len__(self):
-        return len(self.files)
+class RandomNoise(object):
+    def __call__(self, pointcloud):
+        assert len(pointcloud.shape)==2
 
-    def __preproc__(self, file):
-        verts, faces = read_file(file)
-        if self.transforms:
-            pointcloud = self.transforms((verts, faces))
-        return pointcloud
+        noise = np.random.normal(0, 0.02, (pointcloud.shape))
 
-    def __getitem__(self, idx):
-        pcd_path = self.files[idx]['pcd_path']
-        category = self.files[idx]['category']
-        with open(pcd_path, 'r') as f:
-            pointcloud = self.__preproc__(f)
-        return {'pointcloud': pointcloud,
-                'category': self.classes[category]}
+        noisy_pointcloud = pointcloud + noise
+        return  noisy_pointcloud
+
+def get_transforms():
+    return transforms.Compose([
+                    PointSampler(1024),
+                    Normalize(),
+                    RandRotation_z(),
+                    RandomNoise(),
+                    ToTensor()
+                    ])

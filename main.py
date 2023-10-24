@@ -1,15 +1,26 @@
 from pathlib import Path
 import os
 import numpy as np
-from src.dataloader import read_file
+from src.utils import read_file
 from src.visualization import show_mesh, show_scatter
-
+from src.trainer import dataload, train
+from src.pointnet import PointNet
+import torch
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 path = Path('data\ModelNet10')
-with open(path / "bed/train/bed_0001.off", 'r') as f:
-    verts, faces = read_file(f)
+# with open(path / "bed/train/bed_0002.off", 'r') as f:
+#     verts, faces = read_file(f)
+#
+# i,j,k = np.array(faces).T
+# x,y,z = np.array(verts).T
+#
+# show_mesh(x,y,z,i,j,k)
+# show_scatter(x,y,z)
 
-i,j,k = np.array(faces).T
-x,y,z = np.array(verts).T
+pointnet = PointNet()
+pointnet.to(device)
+optimizer = torch.optim.Adam(pointnet.parameters(), lr=0.001)
+train_loader, test_loader = dataload(path)
+train(model = pointnet, train_loader=train_loader, optimizer = optimizer)
 
-show_mesh(x,y,z,i,j,k)
-show_scatter(x,y,z)
+pointnet_plus = PointNetPlus()
