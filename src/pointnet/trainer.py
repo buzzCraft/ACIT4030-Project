@@ -1,5 +1,5 @@
-from src.utils import PointCloudData, get_transforms
-from src.pointnet import pointnetloss
+from src.pointnet.utils import PointCloudData, get_transforms
+from src.pointnet.utils import pointnetloss
 from torch.utils.data import DataLoader
 import torch
 
