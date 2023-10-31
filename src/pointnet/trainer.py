@@ -1,5 +1,5 @@
 from src.pointnet.utils import PointCloudData, get_transforms
-from src.pointnet.utils import pointnetloss
+from src.pointnet.pointnet import pointnetloss
 from torch.utils.data import DataLoader
 import torch
 
@@ -16,10 +16,10 @@ def dataload(path):
     print('Number of classes: ', len(train_ds.classes))
     print('Sample pointcloud shape: ', train_ds[0]['pointcloud'].size())
     print('Class: ', inv_classes[train_ds[0]['category']])
-
+    classes = valid_ds.classes
     train_loader = DataLoader(dataset=train_ds, batch_size=32, shuffle=True)
     valid_loader = DataLoader(dataset=valid_ds, batch_size=64)
-    return train_loader, valid_loader
+    return train_loader, valid_loader, classes
 
 def train(model, train_loader, optimizer, val_loader=None,  epochs=15, save=True):
     # Set device to GPU or CPU

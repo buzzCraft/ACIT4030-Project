@@ -20,6 +20,6 @@ path = Path('data\ModelNet10')
 pointnet = PointNet()
 pointnet.to(device)
 optimizer = torch.optim.Adam(pointnet.parameters(), lr=0.001)
-train_loader, test_loader = dataload(path)
+train_loader, test_loader, _ = dataload(path)
 train(model = pointnet, train_loader=train_loader, optimizer = optimizer)
 

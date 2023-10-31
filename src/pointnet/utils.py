@@ -126,6 +126,10 @@ class PointCloudData(Dataset):
             pointcloud = self.__preproc__(f)
         return {'pointcloud': pointcloud,
                 'category': self.classes[category]}
+
+    def get_classes(self):
+        return self.classes
+
 class RandRotation_z(object):
     def __call__(self, pointcloud):
         assert len(pointcloud.shape)==2
