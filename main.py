@@ -9,6 +9,7 @@ from src.pointnet.pointnet import PointNet
 import torch
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 path = Path('data\ModelNet10')
+# # Look at the data
 # with open(path / "bed/train/bed_0002.off", 'r') as f:
 #     verts, faces = read_file(f)
 #
