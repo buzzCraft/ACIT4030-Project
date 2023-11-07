@@ -1,11 +1,23 @@
 from src.pointnet.utils import PointCloudData, get_transforms
 from src.pointnet.pointnet import pointnetloss
 from torch.utils.data import DataLoader
+import random
+import numpy as np
 import torch
+import os
 
-
+def set_seed(seed_value=42):
+    random.seed(seed_value)       # Python random module
+    np.random.seed(seed_value)    # Numpy module
+    torch.manual_seed(seed_value) # PyTorch
+    if torch.cuda.is_available(): # If running on GPU
+        torch.cuda.manual_seed(seed_value)
+        torch.cuda.manual_seed_all(seed_value)  # For multi-GPU
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 def dataload(path):
+    set_seed(42)
     # Load dataset
     train_transforms = get_transforms()
     train_ds = PointCloudData(path, transform=train_transforms)
@@ -21,7 +33,7 @@ def dataload(path):
     valid_loader = DataLoader(dataset=valid_ds, batch_size=64)
     return train_loader, valid_loader, classes
 
-def train(model, train_loader, optimizer, val_loader=None,  epochs=15, save=True):
+def train(model, train_loader, optimizer, val_loader=None,  epochs=15, save=True, save_path='model_name/'):
     # Set device to GPU or CPU
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     for epoch in range(epochs):
@@ -60,4 +72,7 @@ def train(model, train_loader, optimizer, val_loader=None,  epochs=15, save=True
 
         # save the model
         if save:
-            torch.save(model.state_dict(), "save_"+str(epoch)+".pth")
+            if not os.path.isdir(save_path):
+                # If not, create the directory
+                os.makedirs(save_path, exist_ok=True)
+            torch.save(model.state_dict(), str(save_path) +str(epoch)+".pth")
