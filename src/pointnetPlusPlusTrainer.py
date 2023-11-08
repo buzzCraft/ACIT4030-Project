@@ -61,22 +61,7 @@ def test(model, loader, num_class=40, use_cpu=False):
     return instance_acc, class_acc
 
 
-def main():
-
-    """PARAMETERS"""
-    use_cpu = False
-    gpu = "0"
-    batch_size = 24
-    model = "models"
-    num_category = 10
-    epoch = 200
-    learning_rate = 0.001
-    num_point = 1024
-    optimizer = "Adam"
-    decay_rate = 1e-4
-    use_normals = False
-    process_data = False
-    use_uniform_sample = False
+def train(use_cpu=False, gpu="0", batch_size=24, model="models", num_category=10, epoch=200, learning_rate=0.001, num_point=1024, optimizer="Adam", decay_rate=1e-4, use_normals=False, process_data=False, use_uniform_sample=False):
 
     """HYPER PARAMETER"""
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
@@ -162,6 +147,12 @@ def main():
             mean_correct.append(correct.item() / float(points.size()[0]))
             loss.backward()
             optimizer.step()
+            # Inside your training loop
+            running_loss += loss.item()
+            if batch_id % 10 == 9:    # print every 10 mini-batches
+                print('[Epoch: %d, Batch: %4d / %4d], loss: %.3f' %
+                    (epoch + 1, batch_id + 1, len(trainDataLoader), running_loss / 10))
+                running_loss = 0.0
             global_step += 1
 
         train_instance_acc = np.mean(mean_correct)
@@ -179,6 +170,3 @@ def main():
                 best_class_acc = class_acc
 
             global_epoch += 1
-
-if __name__ == "__main__":
-    main()
