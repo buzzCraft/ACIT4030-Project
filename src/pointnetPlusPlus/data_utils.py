@@ -47,13 +47,13 @@ def farthest_point_sample(point, npoint):
 
 
 class ModelNetDataLoader(Dataset):
-    def __init__(self, root, args, split='train', process_data=False):
+    def __init__(self, root, num_point=1024, split='train', process_data=False, use_uniform_sample=False, use_normals=True, num_category=10):
         self.root = root
-        self.npoints = args.num_point
+        self.npoints = num_point
         self.process_data = process_data
-        self.uniform = args.use_uniform_sample
-        self.use_normals = args.use_normals
-        self.num_category = args.num_category
+        self.uniform = use_uniform_sample
+        self.use_normals = use_normals
+        self.num_category = num_category
 
         if self.num_category == 10:
             self.catfile = os.path.join(self.root, 'modelnet10_shape_names.txt')
