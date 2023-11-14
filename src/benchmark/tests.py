@@ -77,7 +77,7 @@ if __name__ == '__main__':
     # Sample usage:
     from src.pointnet.pointnet import PointNet
     from pathlib import Path
-    from src.trainer import dataload
+    from src.utils import dataload
 
     path = Path('../../data/ModelNet10')
     print("Loading data...")
