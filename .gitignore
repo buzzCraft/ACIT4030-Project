@@ -184,3 +184,5 @@ pyrightconfig.json
 *.pyc
 src/__pycache__/visualization.cpython-311.pyc
 *.pyc
+*.pyc
+*.pyc
