@@ -1,6 +1,4 @@
 from pathlib import Path
-import os
-import numpy as np
 from src.pointnet.utils import read_file
 from src.visualization import show_mesh, show_scatter
 import src.pointnetTrainer
