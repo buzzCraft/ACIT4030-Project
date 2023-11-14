@@ -1,6 +1,6 @@
-from src.pointnet.utils import PointCloudData, get_transforms
+
 from src.pointnet.pointnet import pointnetloss
-from torch.utils.data import DataLoader
+
 import random
 import numpy as np
 import torch
@@ -16,22 +16,7 @@ def set_seed(seed_value=42):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-def dataload(path):
-    set_seed(42)
-    # Load dataset
-    train_transforms = get_transforms()
-    train_ds = PointCloudData(path, transform=train_transforms)
-    valid_ds = PointCloudData(path, valid=True, folder='test', transform=train_transforms)
-    inv_classes = {i: cat for cat, i in train_ds.classes.items()}
-    print('Train dataset size: ', len(train_ds))
-    print('Valid dataset size: ', len(valid_ds))
-    print('Number of classes: ', len(train_ds.classes))
-    print('Sample pointcloud shape: ', train_ds[0]['pointcloud'].size())
-    print('Class: ', inv_classes[train_ds[0]['category']])
-    classes = valid_ds.classes
-    train_loader = DataLoader(dataset=train_ds, batch_size=32, shuffle=True)
-    valid_loader = DataLoader(dataset=valid_ds, batch_size=64)
-    return train_loader, valid_loader, classes
+
 
 def train(model, train_loader, optimizer, val_loader=None,  epochs=15, save=True, save_path='model_name/'):
     # Set device to GPU or CPU
