@@ -5,6 +5,11 @@ from sklearn.metrics import confusion_matrix, accuracy_score
 import pandas as pd
 import time
 
+# Set randomseeds
+torch.manual_seed(42)
+np.random.seed(42)
+
+
 def load_and_evaluate_models(models, model_paths, valid_loader):
     all_model_preds = {}
     all_model_labels = {}
@@ -78,8 +83,8 @@ if __name__ == '__main__':
     print("Loading data...")
     _, valid_loader, classes = dataload(path)
     print("Creating models...")
-    models = {'PointNet': PointNet()}  # You can add more models here as needed
-    model_paths = {'PointNet': '../../save_14.pth'}  # Paths for each model's weights
+    models = {'PointNet': PointNet(), 'PointNet_chkp': PointNet()}  # You can add more models here as needed
+    model_paths = {'PointNet': '../../save_14.pth', 'PointNet_chkp': '../../save_10.pth'}  # Paths for each model's weights
     print("Evaluating models...")
     all_model_preds, all_model_labels, metrics_df = load_and_evaluate_models(models, model_paths, valid_loader)
     print("Generating confusion matrices...")
