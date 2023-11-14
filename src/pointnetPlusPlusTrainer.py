@@ -8,17 +8,18 @@ import sys
 import torch
 import numpy as np
 
-import pointnetPlusPlus.provider as provider
-import importlib
+import src.pointnetPlusPlus.provider as provider
+from src.pointnetPlusPlus.pointnetPlusPlus import get_loss
 
-
-from pathlib import Path
 from tqdm import tqdm
-from pointnetPlusPlus.data_utils import ModelNetDataLoader
+from src.pointnetPlusPlus.data_utils import ModelNetDataLoader
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, "pointnetPlusPlus"))
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def inplace_relu(m):
     """
@@ -31,11 +32,11 @@ def inplace_relu(m):
         m.inplace = True
 
 
-def test(model, loader, num_class=40, use_cpu=False):
+def test(model, loader, num_class=10):
     """
     Test the model using the provided data loader.
     Calculates the instance and class-wise accuracy.
-    Input: model (PyTorch model), loader (data loader), num_class (int), use_cpu (bool)
+    Input: model (PyTorch model), loader (data loader), num_class (int)
     Output: instance_acc (float), class_acc (float)
     """
     mean_correct = []
@@ -44,9 +45,7 @@ def test(model, loader, num_class=40, use_cpu=False):
 
     # Iterate over the dataset
     for j, (points, target) in tqdm(enumerate(loader), total=len(loader)):
-        # Move data to CUDA if available
-        if not use_cpu:
-            points, target = points.cuda(), target.cuda()
+        points, target = points.to(device), target.to(device)
 
         # Preprocess and feed data to the model
         points = points.transpose(2, 1)
@@ -77,24 +76,45 @@ def test(model, loader, num_class=40, use_cpu=False):
     return instance_acc, class_acc
 
 
-def train(use_cpu=False, gpu="0", batch_size=24, model="models", num_category=10, epoch=200, learning_rate=0.001, num_point=1024, optimizer="Adam", decay_rate=1e-4, use_normals=False, process_data=False, use_uniform_sample=False):
+def train(
+    model,
+    batch_size=24,
+    num_category=10,
+    epoch=200,
+    learning_rate=0.001,
+    num_point=1024,
+    optimizer="Adam",
+    decay_rate=1e-4,
+    use_normals=False,
+    process_data=False,
+    use_uniform_sample=False,
+):
     """
     Train a model on point cloud data.
     Input: Various hyperparameters and settings
     Output: Trained model
     """
 
-    # Setting GPU for training
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu
-
     # Data loading
     data_path = "data/modelnet40_normal_resampled/"
 
     train_dataset = ModelNetDataLoader(
-        root=data_path, num_point=num_point, split="train", use_uniform_sample=use_uniform_sample, use_normals=use_normals, process_data=process_data, num_category=num_category
+        root=data_path,
+        num_point=num_point,
+        split="train",
+        use_uniform_sample=use_uniform_sample,
+        use_normals=use_normals,
+        process_data=process_data,
+        num_category=num_category,
     )
     test_dataset = ModelNetDataLoader(
-        root=data_path, num_point=num_point, split="test", use_uniform_sample=use_uniform_sample, use_normals=use_normals, process_data=process_data, num_category=num_category
+        root=data_path,
+        num_point=num_point,
+        split="test",
+        use_uniform_sample=use_uniform_sample,
+        use_normals=use_normals,
+        process_data=process_data,
+        num_category=num_category,
     )
     trainDataLoader = torch.utils.data.DataLoader(
         train_dataset,
@@ -109,17 +129,11 @@ def train(use_cpu=False, gpu="0", batch_size=24, model="models", num_category=10
 
     # Model loading
     num_class = num_category
-    model = importlib.import_module(model)
+    model = model
 
-
-    classifier = model.get_model(num_class, normal_channel=use_normals)
-    criterion = model.get_loss()
+    classifier = model.to(device)
+    criterion = get_loss().to(device)
     classifier.apply(inplace_relu)
-
-    # Move model to GPU if available
-    if not use_cpu:
-        classifier = classifier.cuda()
-        criterion = criterion.cuda()
 
     start_epoch = 0
 
@@ -163,8 +177,7 @@ def train(use_cpu=False, gpu="0", batch_size=24, model="models", num_category=10
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
 
-            if not use_cpu:
-                points, target = points.cuda(), target.cuda()
+            points, target = points.to(device), target.to(device)
 
             # Calculate accuracy and loss
             pred, trans_feat = classifier(points)
@@ -176,9 +189,11 @@ def train(use_cpu=False, gpu="0", batch_size=24, model="models", num_category=10
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-            if batch_id % 10 == 9:    # print every 10 mini-batches
-                print('[Epoch: %d, Batch: %4d / %4d], loss: %.3f' %
-                    (epoch + 1, batch_id + 1, len(trainDataLoader), running_loss / 10))
+            if batch_id % 10 == 9:  # print every 10 mini-batches
+                print(
+                    "[Epoch: %d, Batch: %4d / %4d], loss: %.3f"
+                    % (epoch + 1, batch_id + 1, len(trainDataLoader), running_loss / 10)
+                )
                 running_loss = 0.0
             global_step += 1
 
@@ -187,7 +202,9 @@ def train(use_cpu=False, gpu="0", batch_size=24, model="models", num_category=10
 
         with torch.no_grad():
             instance_acc, class_acc = test(
-                classifier.eval(), testDataLoader, num_class=num_class, use_cpu=use_cpu,
+                classifier.eval(),
+                testDataLoader,
+                num_class=num_class,
             )
 
             if instance_acc >= best_instance_acc:

@@ -1,10 +1,10 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import PointNetSetAbstractionMsg, PointNetSetAbstraction
+from src.pointnetPlusPlus.utils import PointNetSetAbstractionMsg, PointNetSetAbstraction
 
-class get_model(nn.Module):
-    def __init__(self, num_class, normal_channel=True):
-        super(get_model, self).__init__()
+class pointnetPlusPlus(nn.Module):
+    def __init__(self, num_class=10, normal_channel=True):
+        super(pointnetPlusPlus, self).__init__()
         # Determines the number of input channels based on the normal_channel flag
         in_channel = 3 if normal_channel else 0
         self.normal_channel = normal_channel
