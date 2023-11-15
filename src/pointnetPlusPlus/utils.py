@@ -260,5 +260,3 @@ class PointNetSetAbstractionMsg(nn.Module):
         new_xyz = new_xyz.permute(0, 2, 1)
         new_points_concat = torch.cat(new_points_list, dim=1)
         return new_xyz, new_points_concat
-
-
