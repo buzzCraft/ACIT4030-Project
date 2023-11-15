@@ -110,47 +110,9 @@ class ModelNetDataLoader(Dataset):
 
         print('The size of %s data is %d' % (split, len(self.datapath)))
 
-        # Determine save path based on whether using uniform sampling or not
-        if self.uniform:
-            self.save_path = os.path.join(root, 'modelnet%d_%s_%dpts_fps.dat' % (self.num_category, split, self.npoints))
-        else:
-            self.save_path = os.path.join(root, 'modelnet%d_%s_%dpts.dat' % (self.num_category, split, self.npoints))
-
-        # Process and save data if not already processed
-        if self.process_data:
-            if not os.path.exists(self.save_path):
-                print('Processing data %s (only running in the first time)...' % self.save_path)
-                self.list_of_points = [None] * len(self.datapath)
-                self.list_of_labels = [None] * len(self.datapath)
-
-                # Process each data file
-                for index in tqdm(range(len(self.datapath)), total=len(self.datapath)):
-                    fn = self.datapath[index]
-                    cls = self.classes[self.datapath[index][0]]
-                    cls = np.array([cls]).astype(np.int32)
-                    point_set = np.loadtxt(fn[1], delimiter=',').astype(np.float32)
-
-                    # Sample points from point cloud
-                    if self.uniform:
-                        point_set = farthest_point_sample(point_set, self.npoints)
-                    else:
-                        point_set = point_set[0:self.npoints, :]
-
-                    self.list_of_points[index] = point_set
-                    self.list_of_labels[index] = cls
-
-                # Save processed data
-                with open(self.save_path, 'wb') as f:
-                    pickle.dump([self.list_of_points, self.list_of_labels], f)
-            else:
-                # Load processed data if it exists
-                print('Load processed data from %s...' % self.save_path)
-                with open(self.save_path, 'rb') as f:
-                    self.list_of_points, self.list_of_labels = pickle.load(f)
-
     def _has_enough_points(self, filepath):
         with open(filepath, 'r') as f:
-            enough_points = read_file(f, self.npoints, check_num_points=True)  # Assuming read_file returns vertices and faces
+            enough_points = read_file(f, self.npoints, check_num_points=True)
         return enough_points
 
     def __len__(self):
@@ -158,30 +120,24 @@ class ModelNetDataLoader(Dataset):
         return len(self.datapath)
 
     def _get_item(self, index):
-        if self.process_data:
-            point_set, label = self.list_of_points[index], self.list_of_labels[index]
-        else:
-            fn = self.datapath[index]
-            cls = self.classes[self.datapath[index][0]]
-            label = np.array([cls]).astype(np.int32)
 
-            # Open and read the OFF file
-            with open(fn[1], 'r') as f:
-                verts = read_file(f)
+        fn = self.datapath[index]
+        cls = self.classes[self.datapath[index][0]]
+        label = np.array([cls]).astype(np.int32)
 
-            # Convert vertices to a NumPy array
-            point_set = np.array(verts, dtype=np.float32)
+        # Open and read the OFF file
+        with open(fn[1], 'r') as f:
+            verts = read_file(f)
 
-            # Sample points from point cloud
-            if self.uniform:
-                point_set = farthest_point_sample(point_set, self.npoints)
-            else:
-                point_set = point_set[0:self.npoints, :]
+        # Convert vertices to a NumPy array
+        point_set = np.array(verts, dtype=np.float32)
 
-        # Normalize point cloud and optionally remove normals
+        # Sample points from point cloud
+       
+        point_set = farthest_point_sample(point_set, self.npoints)
+
+
         point_set[:, 0:3] = pc_normalize(point_set[:, 0:3])
-        if not self.use_normals:
-            point_set = point_set[:, 0:3]
 
         return point_set, label[0]
 
