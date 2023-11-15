@@ -278,6 +278,8 @@ def pointnetloss(outputs, labels, m3x3, m64x64, alpha=0.0001):
     # Define the classification loss function
     criterion = torch.nn.NLLLoss()
 
+    labels = labels.long()
+
     # Get the batch size from the outputs tensor
     bs = outputs.size(0)
 
