@@ -7,32 +7,54 @@ import src.pointnetTrainer
 from src.pointnet.pointnet import PointNet
 from src.pointnetPlusPlus.pointnetPlusPlus import pointnetPlusPlus
 import src.pointnetPlusPlusTrainer
-
 import torch
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-path = Path("data\ModelNet10")
-# # Look at the data
-# with open(path / "bed/train/bed_0002.off", 'r') as f:
-#     verts, faces = read_file(f)
-#
-# i,j,k = np.array(faces).T
-# x,y,z = np.array(verts).T
-#
-# show_mesh(x,y,z,i,j,k)
-# show_scatter(x,y,z)
-
-# pointnet = PointNet()
-# pointnet.to(device)
-# optimizer = torch.optim.Adam(pointnet.parameters(), lr=0.001)
-# train_loader, test_loader, _ = src.pointnetTrainer.dataload(path)
-# src.pointnetTrainer.train(model = pointnet, train_loader=train_loader, optimizer = optimizer, save_path='pointnetmodel/pointnet')
-
+from src.data_utils import ModelNetDataLoader
 
 
 def __main__():
-    pointnetPlusPlusModel = pointnetPlusPlus(num_class=10)
-    src.pointnetPlusPlusTrainer.train(model=pointnetPlusPlusModel)
+    # Set device to GPU or CPU
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-if __name__ == '__main__':
+    # Set path to dataset
+    path = Path("data\ModelNet10")
+
+    # Load dataset
+    train_dataset = ModelNetDataLoader(path, split="train", use_uniform_sample=False)
+    trainDataLoader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=24,
+        shuffle=True,
+        drop_last=True,
+    )
+
+    # Load model and optimizer for pointnet
+    pointnet = PointNet().to(device)
+
+    # # Train pointnet
+    src.pointnetTrainer.train(
+        model=pointnet,
+        train_loader=trainDataLoader,
+        save_path="models/pointnet",
+        epochs=1,
+    )
+
+    # Load dataset with farthest point sampling
+    train_dataset = ModelNetDataLoader(path, split="train", use_uniform_sample=False)
+    trainDataLoader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=24,
+        shuffle=True,
+        drop_last=True,
+    )
+
+    pointnetPlusPlusModel = pointnetPlusPlus()
+    src.pointnetPlusPlusTrainer.train(
+        model=pointnetPlusPlusModel,
+        train_loader=trainDataLoader,
+        save_path="models/pointnetplusplus",
+        epochs=1,
+    )
+
+
+if __name__ == "__main__":
     __main__()
