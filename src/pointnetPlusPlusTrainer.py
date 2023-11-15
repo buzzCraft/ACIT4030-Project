@@ -96,7 +96,7 @@ def train(
     """
 
     # Data loading
-    data_path = "data/modelnet40_normal_resampled/"
+    data_path = "data/ModelNet10/"
 
     train_dataset = ModelNetDataLoader(
         root=data_path,
@@ -120,11 +120,14 @@ def train(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=10,
+        # num_workers=10,
         drop_last=True,
     )
     testDataLoader = torch.utils.data.DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=False, num_workers=10
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        # num_workers=10,
     )
 
     # Model loading
@@ -188,17 +191,17 @@ def train(
             mean_correct.append(correct.item() / float(points.size()[0]))
             loss.backward()
             optimizer.step()
-            running_loss += loss.item()
-            if batch_id % 10 == 9:  # print every 10 mini-batches
-                print(
-                    "[Epoch: %d, Batch: %4d / %4d], loss: %.3f"
-                    % (epoch + 1, batch_id + 1, len(trainDataLoader), running_loss / 10)
-                )
-                running_loss = 0.0
-            global_step += 1
+            # running_loss += loss.item()
+            # if batch_id % 10 == 9:  # print every 10 mini-batches
+            #     print(
+            #         "[Epoch: %d, Batch: %4d / %4d], loss: %.3f"
+            #         % (epoch + 1, batch_id + 1, len(trainDataLoader), running_loss / 10)
+            #     )
+            #     running_loss = 0.0
+            # global_step += 1
 
         # Calculating training accuracy
-        train_instance_acc = np.mean(mean_correct)
+        # train_instance_acc = np.mean(mean_correct)
 
         with torch.no_grad():
             instance_acc, class_acc = test(

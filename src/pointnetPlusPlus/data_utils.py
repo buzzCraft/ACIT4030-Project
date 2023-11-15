@@ -46,6 +46,37 @@ def farthest_point_sample(point, npoint):
     point = point[centroids.astype(np.int32)]
     return point
 
+def read_file(file, num_points=1024, check_num_points=False):
+    """
+    Reads an OFF (Object File Format) file and extracts the vertices and faces.
+
+    Parameters:
+        file : An open file-like object with methods read() or readline()
+                                 that return a string.
+
+    Returns:
+        tuple: A tuple containing two lists, the first with vertices and the second with faces.
+               Vertices are 3-element lists [x, y, z], and faces are lists of indices (as integers)
+               corresponding to the vertices that form each face.
+    """
+    # Check the OFF file format header
+    if 'OFF' != file.readline().strip():
+        raise ValueError('Not a valid OFF header')
+
+    # Read the number of vertices and faces
+    n_verts, _, __ = tuple(int(s) for s in file.readline().strip().split(' '))
+
+    # Check if number of points is correct
+    if check_num_points:
+        if n_verts < num_points:
+            return False
+        return True
+
+    # Read the vertices
+    verts = [[float(s) for s in file.readline().strip().split(' ')] for _ in range(n_verts)]
+
+    return verts
+
 class ModelNetDataLoader(Dataset):
     def __init__(self, root, num_point=1024, split='train', process_data=False, use_uniform_sample=False, use_normals=True, num_category=10):
         self.root = root
@@ -55,29 +86,28 @@ class ModelNetDataLoader(Dataset):
         self.use_normals = use_normals
         self.num_category = num_category
 
-        # Load category file based on the number of categories
-        if self.num_category == 10:
-            self.catfile = os.path.join(self.root, 'modelnet10_shape_names.txt')
-        else:
-            self.catfile = os.path.join(self.root, 'modelnet40_shape_names.txt')
-
-        # Read category names from file
-        self.cat = [line.rstrip() for line in open(self.catfile)]
+        # Gather categories from directory names
+        self.cat = [d for d in os.listdir(self.root) if os.path.isdir(os.path.join(self.root, d))]
         self.classes = dict(zip(self.cat, range(len(self.cat))))
 
-        # Load shape IDs based on training or test split
-        shape_ids = {}
-        if self.num_category == 10:
-            shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, 'modelnet10_train.txt'))]
-            shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, 'modelnet10_test.txt'))]
-        else:
-            shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, 'modelnet40_train.txt'))]
-            shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, 'modelnet40_test.txt'))]
+        # Initialize datapath list
+        self.datapath = []
 
-        assert (split == 'train' or split == 'test')
-        shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
-        self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
-                         in range(len(shape_ids[split]))]
+        # Iterate through each category
+        for category in self.cat:
+            dir = os.path.join(self.root, category, split)  # Path to the category directory
+
+            # Check if the directory exists
+            if not os.path.exists(dir):
+                continue
+
+            # Add file paths to the datapath list
+            for filename in os.listdir(dir):
+                if filename.endswith('.off'):
+                    sample_path = os.path.join(dir, filename)
+                    if self._has_enough_points(sample_path):
+                        self.datapath.append((category, sample_path))
+
         print('The size of %s data is %d' % (split, len(self.datapath)))
 
         # Determine save path based on whether using uniform sampling or not
@@ -118,26 +148,36 @@ class ModelNetDataLoader(Dataset):
                 with open(self.save_path, 'rb') as f:
                     self.list_of_points, self.list_of_labels = pickle.load(f)
 
+    def _has_enough_points(self, filepath):
+        with open(filepath, 'r') as f:
+            enough_points = read_file(f, self.npoints, check_num_points=True)  # Assuming read_file returns vertices and faces
+        return enough_points
+
     def __len__(self):
         # Return the length of the dataset
         return len(self.datapath)
 
     def _get_item(self, index):
-        # Helper function to get a single item from the dataset
         if self.process_data:
             point_set, label = self.list_of_points[index], self.list_of_labels[index]
         else:
             fn = self.datapath[index]
             cls = self.classes[self.datapath[index][0]]
             label = np.array([cls]).astype(np.int32)
-            point_set = np.loadtxt(fn[1], delimiter=',').astype(np.float32)
+
+            # Open and read the OFF file
+            with open(fn[1], 'r') as f:
+                verts = read_file(f)
+
+            # Convert vertices to a NumPy array
+            point_set = np.array(verts, dtype=np.float32)
 
             # Sample points from point cloud
             if self.uniform:
                 point_set = farthest_point_sample(point_set, self.npoints)
             else:
                 point_set = point_set[0:self.npoints, :]
-                
+
         # Normalize point cloud and optionally remove normals
         point_set[:, 0:3] = pc_normalize(point_set[:, 0:3])
         if not self.use_normals:

@@ -27,5 +27,12 @@ path = Path("data\ModelNet10")
 # optimizer = torch.optim.Adam(pointnet.parameters(), lr=0.001)
 # train_loader, test_loader, _ = src.pointnetTrainer.dataload(path)
 # src.pointnetTrainer.train(model = pointnet, train_loader=train_loader, optimizer = optimizer, save_path='pointnetmodel/pointnet')
-pointnetPlusPlus = pointnetPlusPlus()
-src.pointnetPlusPlusTrainer.train(model=pointnetPlusPlus)
+
+
+
+def __main__():
+    pointnetPlusPlusModel = pointnetPlusPlus(num_class=10)
+    src.pointnetPlusPlusTrainer.train(model=pointnetPlusPlusModel)
+
+if __name__ == '__main__':
+    __main__()
