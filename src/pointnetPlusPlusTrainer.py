@@ -12,7 +12,7 @@ import src.pointnetPlusPlus.provider as provider
 from src.pointnetPlusPlus.pointnetPlusPlus import get_loss
 
 from tqdm import tqdm
-from src.pointnetPlusPlus.data_utils import ModelNetDataLoader
+from src.data_utils import ModelNetDataLoader
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
@@ -43,9 +43,11 @@ def test(model, loader, num_class=10):
     class_acc = np.zeros((num_class, 3))
     classifier = model.eval()
 
+    tqdm_loader = tqdm(enumerate(loader, 0), total=len(loader))
+
     # Iterate over the dataset
-    for j, (points, target) in tqdm(enumerate(loader), total=len(loader)):
-        points, target = points.to(device), target.to(device)
+    for j, (points, target) in tqdm_loader:
+        points, target = points.to(device), target["category"].to(device)
 
         # Preprocess and feed data to the model
         points = points.transpose(2, 1)
@@ -78,60 +80,20 @@ def test(model, loader, num_class=10):
 
 def train(
     model,
-    batch_size=24,
-    num_category=10,
-    epoch=200,
+    train_loader,
+    val_loader=None,
+    epochs=15,
+    save_path=None,
     learning_rate=0.001,
-    num_point=1024,
     optimizer="Adam",
     decay_rate=1e-4,
-    use_normals=False,
-    process_data=False,
-    use_uniform_sample=False,
 ):
     """
     Train a model on point cloud data.
     Input: Various hyperparameters and settings
     Output: Trained model
     """
-
-    # Data loading
-    data_path = "data/ModelNet10/"
-
-    train_dataset = ModelNetDataLoader(
-        root=data_path,
-        num_point=num_point,
-        split="train",
-        use_uniform_sample=use_uniform_sample,
-        use_normals=use_normals,
-        process_data=process_data,
-        num_category=num_category,
-    )
-    test_dataset = ModelNetDataLoader(
-        root=data_path,
-        num_point=num_point,
-        split="test",
-        use_uniform_sample=use_uniform_sample,
-        use_normals=use_normals,
-        process_data=process_data,
-        num_category=num_category,
-    )
-    trainDataLoader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        # num_workers=10,
-        drop_last=True,
-    )
-    testDataLoader = torch.utils.data.DataLoader(
-        test_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        # num_workers=10,
-    )
-
     # Model loading
-    num_class = num_category
     model = model
 
     classifier = model.to(device)
@@ -154,22 +116,17 @@ def train(
 
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
 
-    # Training loop
-    global_epoch = 0
-    global_step = 0
-    best_instance_acc = 0.0
-    best_class_acc = 0.0
-
-    for epoch in range(start_epoch, epoch):
+    for epoch in range(start_epoch, epochs):
         mean_correct = []
         classifier = classifier.train()
+        running_loss = 0
 
         scheduler.step()
 
+        tqdm_loader = tqdm(enumerate(train_loader, 0), total=len(train_loader))
+
         # Iterating over the dataset
-        for batch_id, (points, target) in tqdm(
-            enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9
-        ):
+        for batch_id, (points, target) in tqdm_loader:
             optimizer.zero_grad()
 
             # Preprocess points and feed to the classifier
@@ -180,7 +137,7 @@ def train(
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
 
-            points, target = points.to(device), target.to(device)
+            points, target = points.to(device), target["category"].to(device)
 
             # Calculate accuracy and loss
             pred, trans_feat = classifier(points)
@@ -191,30 +148,39 @@ def train(
             mean_correct.append(correct.item() / float(points.size()[0]))
             loss.backward()
             optimizer.step()
-            # running_loss += loss.item()
-            # if batch_id % 10 == 9:  # print every 10 mini-batches
-            #     print(
-            #         "[Epoch: %d, Batch: %4d / %4d], loss: %.3f"
-            #         % (epoch + 1, batch_id + 1, len(trainDataLoader), running_loss / 10)
-            #     )
-            #     running_loss = 0.0
-            # global_step += 1
+            running_loss += loss.item()
 
-        # Calculating training accuracy
-        # train_instance_acc = np.mean(mean_correct)
+            if batch_id % 10 == 9:
+                tqdm_loader.set_description(
+                    "[Epoch: %d, Batch: %4d / %4d], loss: %.3f, training accuracy: %.3f"
+                    % (
+                        epoch + 1,
+                        batch_id + 1,
+                        len(train_loader),
+                        running_loss,
+                        np.mean(mean_correct),
+                    )
+                )
+                running_loss = 0.0
 
-        with torch.no_grad():
-            instance_acc, class_acc = test(
-                classifier.eval(),
-                testDataLoader,
-                num_class=num_class,
-            )
+        if val_loader:
+            with torch.no_grad():
+                instance_acc, class_acc = test(
+                    classifier.eval(),
+                    val_loader,
+                )
 
-            if instance_acc >= best_instance_acc:
-                best_instance_acc = instance_acc
-                best_epoch = epoch + 1
+                if instance_acc >= best_instance_acc:
+                    best_instance_acc = instance_acc
+                    best_epoch = epoch + 1
 
-            if class_acc >= best_class_acc:
-                best_class_acc = class_acc
+                if class_acc >= best_class_acc:
+                    best_class_acc = class_acc
 
-            global_epoch += 1
+        # save the model
+        if save_path:
+            save_path = os.path.join(save_path, f'pointnetplusplus_epochs{epoch}.pth')
+            if not os.path.isdir(save_path):
+                # If not, create the directory
+                os.makedirs(save_path, exist_ok=True)
+            torch.save(model.state_dict(), save_path)
