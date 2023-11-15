@@ -5,55 +5,73 @@ import random
 import numpy as np
 import torch
 import os
+from tqdm import tqdm
 
-def set_seed(seed_value=42):
-    random.seed(seed_value)       # Python random module
-    np.random.seed(seed_value)    # Numpy module
-    torch.manual_seed(seed_value) # PyTorch
-    if torch.cuda.is_available(): # If running on GPU
-        torch.cuda.manual_seed(seed_value)
-        torch.cuda.manual_seed_all(seed_value)  # For multi-GPU
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
 
-def dataload(path):
-    set_seed(42)
-    # Load dataset
-    train_transforms = get_transforms()
-    train_ds = PointCloudData(path, transform=train_transforms)
-    valid_ds = PointCloudData(path, valid=True, folder='test', transform=train_transforms)
-    inv_classes = {i: cat for cat, i in train_ds.classes.items()}
-    print('Train dataset size: ', len(train_ds))
-    print('Valid dataset size: ', len(valid_ds))
-    print('Number of classes: ', len(train_ds.classes))
-    print('Sample pointcloud shape: ', train_ds[0]['pointcloud'].size())
-    print('Class: ', inv_classes[train_ds[0]['category']])
-    classes = valid_ds.classes
-    train_loader = DataLoader(dataset=train_ds, batch_size=32, shuffle=True)
-    valid_loader = DataLoader(dataset=valid_ds, batch_size=64)
-    return train_loader, valid_loader, classes
-
-def train(model, train_loader, optimizer, val_loader=None,  epochs=15, save=True, save_path='model_name/'):
+def train(
+    model,
+    train_loader,
+    val_loader=None,
+    epochs=15,
+    save_path=None,
+    learning_rate=0.001,
+    decay_rate=0.0001,
+    optimizer="Adam",
+):
     # Set device to GPU or CPU
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    model = model.to(device)
+
+    # Optimizer setup
+    if optimizer == "Adam":
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=learning_rate,
+            betas=(0.9, 0.999),
+            eps=1e-08,
+            weight_decay=decay_rate,
+        )
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
+
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
-        for i, data in enumerate(train_loader, 0):
-            inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
-            optimizer.zero_grad()
-            outputs, m3x3, m64x64 = model(inputs.transpose(1,2))
 
-            loss = pointnetloss(outputs, labels, m3x3, m64x64)
+        scheduler.step()
+
+        tqdm_loader = tqdm(enumerate(train_loader, 0), total=len(train_loader))
+
+        for i, (points, target) in tqdm_loader:
+            points = points.data.numpy()
+            # points = provider.random_point_dropout(points)
+            # points[:, :, 0:3] = provider.random_scale_point_cloud(points[:, :, 0:3])
+            # points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
+            points = torch.Tensor(points)
+            points = points.transpose(2, 1)
+
+            points, target = points.to(device), target["category"].to(device)
+            optimizer.zero_grad()
+            outputs, m3x3, m64x64 = model(points)
+
+            loss = pointnetloss(outputs, target, m3x3, m64x64)
             loss.backward()
             optimizer.step()
 
             # print statistics
             running_loss += loss.item()
-            if i % 10 == 9:    # print every 10 mini-batches
-                    print('[Epoch: %d, Batch: %4d / %4d], loss: %.3f' %
-                        (epoch + 1, i + 1, len(train_loader), running_loss / 10))
-                    running_loss = 0.0
+            if i % 10 == 9:  # print every 10 mini-batches
+                message = "[Epoch: %d, Batch: %4d / %4d], loss: %.3f" % (
+                    epoch + 1,
+                    i + 1,
+                    len(train_loader),
+                    running_loss / 10,
+                )
+                tqdm_loader.set_description(message)
+                running_loss = 0.0
 
         model.eval()
         correct = total = 0
@@ -61,18 +79,25 @@ def train(model, train_loader, optimizer, val_loader=None,  epochs=15, save=True
         # validation
         if val_loader:
             with torch.no_grad():
-                for data in val_loader:
-                    inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
-                    outputs, __, __ = model(inputs.transpose(1,2))
+                for i, (points, target) in tqdm(
+                    enumerate(train_loader, 0), total=len(train_loader)
+                ):
+                    points, target = points.to(device).float(), target["category"].to(
+                        device
+                    )
+                    points = torch.Tensor(points)
+                    points = points.transpose(2, 1)
+                    outputs, __, __ = model(points)
                     _, predicted = torch.max(outputs.data, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-            val_acc = 100. * correct / total
-            print('Valid accuracy: %d %%' % val_acc)
+                    total += target.size(0)
+                    correct += (predicted == target).sum().item()
+            val_acc = 100.0 * correct / total
+            print("Valid accuracy: %d %%" % val_acc)
 
         # save the model
-        if save:
+        if save_path:
+            save_path = os.path.join(save_path, f'pointnet_epochs{epoch}.pth')
             if not os.path.isdir(save_path):
                 # If not, create the directory
                 os.makedirs(save_path, exist_ok=True)
-            torch.save(model.state_dict(), str(save_path) +str(epoch)+".pth")
+            torch.save(model.state_dict(), save_path)
