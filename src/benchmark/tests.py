@@ -7,7 +7,9 @@ import time
 from tqdm import tqdm
 
 
+
 def load_and_evaluate_models(models, model_paths, valid_dataset):
+
     all_model_preds = {}
     all_model_labels = {}
     metrics_data = []
@@ -117,14 +119,18 @@ if __name__ == "__main__":
     # Sample usage:
     from src.pointnet.pointnet import PointNet
     from pathlib import Path
+
     from src.pointnetTrainer import dataload
+
 
     path = Path("../../data/ModelNet10")
     print("Loading data...")
     _, valid_loader, classes = dataload(path)
     print("Creating models...")
+
     models = {"PointNet": PointNet()}  # You can add more models here as needed
     model_paths = {"PointNet": "../../save_14.pth"}  # Paths for each model's weights
+
     print("Evaluating models...")
     all_model_preds, all_model_labels, metrics_df = load_and_evaluate_models(
         models, model_paths, valid_loader
