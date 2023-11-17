@@ -1,6 +1,7 @@
 import numpy as np
 import plotly.graph_objects as go
 
+
 def visualize_rotate(data):
     """
     Creates a 3D plot with an animated rotation effect around the Z-axis.
@@ -21,36 +22,46 @@ def visualize_rotate(data):
     # Create frames for the animation
     for t in np.arange(0, 10.26, 0.1):
         xe, ye, ze = rotate_z(x_eye, y_eye, z_eye, -t)
-        frames.append(dict(layout=dict(scene=dict(camera=dict(eye=dict(x=xe, y=ye, z=ze))))))
+        frames.append(
+            dict(layout=dict(scene=dict(camera=dict(eye=dict(x=xe, y=ye, z=ze)))))
+        )
 
     # Create the figure with the rotation animation
     fig = go.Figure(
         data=data,
         layout=go.Layout(
-            updatemenus=[dict(
-                type='buttons',
-                showactive=False,
-                y=1,
-                x=0.8,
-                xanchor='left',
-                yanchor='bottom',
-                pad=dict(t=45, r=10),
-                buttons=[dict(
-                    label='Play',
-                    method='animate',
-                    args=[None, dict(
-                        frame=dict(duration=50, redraw=True),
-                        transition=dict(duration=0),
-                        fromcurrent=True,
-                        mode='immediate'
-                    )]
-                )]
-            )]
+            updatemenus=[
+                dict(
+                    type="buttons",
+                    showactive=False,
+                    y=1,
+                    x=0.8,
+                    xanchor="left",
+                    yanchor="bottom",
+                    pad=dict(t=45, r=10),
+                    buttons=[
+                        dict(
+                            label="Play",
+                            method="animate",
+                            args=[
+                                None,
+                                dict(
+                                    frame=dict(duration=50, redraw=True),
+                                    transition=dict(duration=0),
+                                    fromcurrent=True,
+                                    mode="immediate",
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
         ),
-        frames=frames
+        frames=frames,
     )
 
     return fig
+
 
 def show_mesh(x, y, z, i, j, k):
     """
@@ -59,9 +70,10 @@ def show_mesh(x, y, z, i, j, k):
         x, y, z (array-like): Coordinates of the mesh vertices.
         i, j, k (array-like): Indices of the vertices that form the mesh's triangles.
     """
-    visualize_rotate([
-        go.Mesh3d(x=x, y=y, z=z, color='lightpink', opacity=0.50, i=i, j=j, k=k)
-    ]).show()
+    visualize_rotate(
+        [go.Mesh3d(x=x, y=y, z=z, color="lightpink", opacity=0.50, i=i, j=j, k=k)]
+    ).show()
+
 
 def show_scatter(x, y, z):
     """
@@ -69,6 +81,4 @@ def show_scatter(x, y, z):
     Parameters:
         x, y, z (array-like): Coordinates of the scatter plot points.
     """
-    visualize_rotate([
-        go.Scatter3d(x=x, y=y, z=z, mode='markers')
-    ]).show()
+    visualize_rotate([go.Scatter3d(x=x, y=y, z=z, mode="markers")]).show()

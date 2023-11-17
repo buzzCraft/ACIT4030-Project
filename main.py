@@ -1,14 +1,12 @@
 from pathlib import Path
-import os
-import numpy as np
-from src.pointnet.utils import read_file
-from src.visualization import show_mesh, show_scatter
-import src.pointnetTrainer
 from src.pointnet.pointnet import PointNet
 from src.pointnetPlusPlus.pointnetPlusPlus import pointnetPlusPlus
+import src.pointnetTrainer
 import src.pointnetPlusPlusTrainer
 import torch
-from src.data_utils import ModelNetDataLoader
+from src.utils.data_utils import ModelNetDataLoader
+
+from src.benchmark import tests
 
 
 def __main__():
@@ -18,8 +16,11 @@ def __main__():
     # Set path to dataset
     path = Path("data\ModelNet10")
 
-    # Load dataset
-    train_dataset = ModelNetDataLoader(path, split="train", use_uniform_sample=False)
+    # Set epochs
+    epochs = 10
+
+    # Load dataset without farthest point sampling
+    train_dataset = ModelNetDataLoader(path, split="train", use_uniform_sample=True)
     trainDataLoader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=24,
@@ -27,19 +28,19 @@ def __main__():
         drop_last=True,
     )
 
-    # Load model and optimizer for pointnet
+    # Load pointnet model
     pointnet = PointNet().to(device)
 
-    # # Train pointnet
+    # Train pointnet
     src.pointnetTrainer.train(
         model=pointnet,
         train_loader=trainDataLoader,
         save_path="models/pointnet",
-        epochs=1,
+        epochs=epochs,
     )
 
     # Load dataset with farthest point sampling
-    train_dataset = ModelNetDataLoader(path, split="train", use_uniform_sample=False)
+    train_dataset = ModelNetDataLoader(path, split="train", use_uniform_sample=True)
     trainDataLoader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=24,
@@ -47,12 +48,37 @@ def __main__():
         drop_last=True,
     )
 
+    # Load pointnet++ model
     pointnetPlusPlusModel = pointnetPlusPlus()
+
+    # Train pointnet++
     src.pointnetPlusPlusTrainer.train(
         model=pointnetPlusPlusModel,
         train_loader=trainDataLoader,
         save_path="models/pointnetplusplus",
-        epochs=1,
+        epochs=epochs,
+    )
+
+    # Set up test datasets for testing
+    valid_dataset_pointnet = ModelNetDataLoader(
+        path, split="test", use_uniform_sample=False
+    )
+    valid_dataset_pointnetPlusPlus = ModelNetDataLoader(
+        path, split="test", use_uniform_sample=True
+    )
+
+    # Load models for testing
+    pointnet = PointNet().to(device)
+    pointnetPlusPlusModel = pointnetPlusPlus().to(device)
+
+    # test trained models
+    tests.test_models(
+        models={"PointNet": pointnet, "PointNet++": pointnetPlusPlusModel},
+        model_paths={
+            "PointNet": f"models/pointnet/pointnet_epochs{epochs}.pth",
+            "PointNet++": f"models/pointnetplusplus/pointnetplusplus_epochs{epochs}.pth",
+        },
+        valid_datasets=[valid_dataset_pointnet, valid_dataset_pointnetPlusPlus],
     )
 
 

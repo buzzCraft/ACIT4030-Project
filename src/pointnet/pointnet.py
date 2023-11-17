@@ -304,4 +304,3 @@ def pointnetloss(outputs, labels, m3x3, m64x64, alpha=0.0001):
 
     # The total loss is the sum of the classification loss and the regularization term
     return criterion(outputs, labels) + reg_loss
-

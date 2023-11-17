@@ -1,11 +1,9 @@
-from src.pointnet.utils import PointCloudData, get_transforms
 from src.pointnet.pointnet import pointnetloss
-from torch.utils.data import DataLoader
-import random
 import numpy as np
 import torch
 import os
 from tqdm import tqdm
+import src.utils.transformations as transformations
 
 
 def train(
@@ -40,6 +38,7 @@ def train(
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
+        mean_correct = []
 
         scheduler.step()
 
@@ -47,15 +46,22 @@ def train(
 
         for i, (points, target) in tqdm_loader:
             points = points.data.numpy()
-            # points = provider.random_point_dropout(points)
-            # points[:, :, 0:3] = provider.random_scale_point_cloud(points[:, :, 0:3])
-            # points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
+            points = transformations.random_point_dropout(points)
+            points[:, :, 0:3] = transformations.random_scale_point_cloud(
+                points[:, :, 0:3]
+            )
+            points[:, :, 0:3] = transformations.shift_point_cloud(points[:, :, 0:3])
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
 
             points, target = points.to(device), target["category"].to(device)
             optimizer.zero_grad()
             outputs, m3x3, m64x64 = model(points)
+
+            pred_choice = outputs.data.max(1)[1]
+
+            correct = pred_choice.eq(target.long().data).cpu().sum()
+            mean_correct.append(correct.item() / float(points.size()[0]))
 
             loss = pointnetloss(outputs, target, m3x3, m64x64)
             loss.backward()
@@ -64,11 +70,10 @@ def train(
             # print statistics
             running_loss += loss.item()
             if i % 10 == 9:  # print every 10 mini-batches
-                message = "[Epoch: %d, Batch: %4d / %4d], loss: %.3f" % (
+                message = "[Epoch: %d], loss: %.3f, training accuracy: %.3f" % (
                     epoch + 1,
-                    i + 1,
-                    len(train_loader),
                     running_loss / 10,
+                    np.mean(mean_correct),
                 )
                 tqdm_loader.set_description(message)
                 running_loss = 0.0
@@ -79,25 +84,26 @@ def train(
         # validation
         if val_loader:
             with torch.no_grad():
-                for i, (points, target) in tqdm(
-                    enumerate(train_loader, 0), total=len(train_loader)
-                ):
+                val_acc = []
+                tqdm_loader = tqdm(enumerate(val_loader, 0), total=len(val_loader))
+
+                for i, (points, target) in tqdm(tqdm_loader):
                     points, target = points.to(device).float(), target["category"].to(
                         device
                     )
                     points = torch.Tensor(points)
                     points = points.transpose(2, 1)
                     outputs, __, __ = model(points)
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += target.size(0)
-                    correct += (predicted == target).sum().item()
-            val_acc = 100.0 * correct / total
-            print("Valid accuracy: %d %%" % val_acc)
+                    pred_choice = outputs.data.max(1)[1]
+
+                    correct = pred_choice.eq(target.long().data).cpu().sum()
+                    val_acc.append(correct.item() / float(points.size()[0]))
+            tqdm_loader.write("Valid accuracy: %d %%" % np.mean(val_acc))
 
         # save the model
         if save_path:
-            save_path = os.path.join(save_path, f'pointnet_epochs{epoch}.pth')
             if not os.path.isdir(save_path):
                 # If not, create the directory
                 os.makedirs(save_path, exist_ok=True)
-            torch.save(model.state_dict(), save_path)
+            filepath = os.path.join(save_path, f"pointnet_epochs{epoch+1}.pth")
+            torch.save(model.state_dict(), filepath)

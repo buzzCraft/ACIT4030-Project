@@ -1,22 +1,12 @@
-"""
-Author: Benny
-Date: Nov 2019
-"""
-
 import os
 import sys
 import torch
 import numpy as np
 
-import src.pointnetPlusPlus.provider as provider
+import src.utils.transformations as transformations
 from src.pointnetPlusPlus.pointnetPlusPlus import get_loss
 
 from tqdm import tqdm
-from src.data_utils import ModelNetDataLoader
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, "pointnetPlusPlus"))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -131,9 +121,11 @@ def train(
 
             # Preprocess points and feed to the classifier
             points = points.data.numpy()
-            points = provider.random_point_dropout(points)
-            points[:, :, 0:3] = provider.random_scale_point_cloud(points[:, :, 0:3])
-            points[:, :, 0:3] = provider.shift_point_cloud(points[:, :, 0:3])
+            points = transformations.random_point_dropout(points)
+            points[:, :, 0:3] = transformations.random_scale_point_cloud(
+                points[:, :, 0:3]
+            )
+            points[:, :, 0:3] = transformations.shift_point_cloud(points[:, :, 0:3])
             points = torch.Tensor(points)
             points = points.transpose(2, 1)
 
@@ -152,12 +144,10 @@ def train(
 
             if batch_id % 10 == 9:
                 tqdm_loader.set_description(
-                    "[Epoch: %d, Batch: %4d / %4d], loss: %.3f, training accuracy: %.3f"
+                    "[Epoch: %d], loss: %.3f, training accuracy: %.3f"
                     % (
                         epoch + 1,
-                        batch_id + 1,
-                        len(train_loader),
-                        running_loss,
+                        running_loss / 10,
                         np.mean(mean_correct),
                     )
                 )
@@ -179,8 +169,8 @@ def train(
 
         # save the model
         if save_path:
-            save_path = os.path.join(save_path, f'pointnetplusplus_epochs{epoch}.pth')
             if not os.path.isdir(save_path):
                 # If not, create the directory
                 os.makedirs(save_path, exist_ok=True)
-            torch.save(model.state_dict(), save_path)
+            file_path = os.path.join(save_path, f"pointnetplusplus_epochs{epoch+1}.pth")
+            torch.save(model.state_dict(), file_path)

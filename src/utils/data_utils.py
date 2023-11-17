@@ -1,13 +1,6 @@
-'''
-@author: Xu Yan
-@file: ModelNet.py
-@time: 2021/3/19 15:51
-'''
-
 import os
 import numpy as np
 import warnings
-import pickle
 
 from tqdm import tqdm
 from torch.utils.data import Dataset
